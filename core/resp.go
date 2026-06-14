@@ -1,6 +1,9 @@
 package core
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 func readLength(data []byte) (int, int) {
 	pos := 0
@@ -44,21 +47,21 @@ func readInt64(data []byte) (int64, int, error) {
 func readBulkString(data []byte) (string, int, error) {
 	pos := 1
 
-	len, delta := readLength(data[pos:])
+	length, delta := readLength(data[pos:])
 	pos += delta
 
-	return string(data[pos:(pos + len)]), pos + len + 2, nil
+	return string(data[pos:(pos + length)]), pos + length + 2, nil
 }
 
 func readArray(data []byte) ([]interface{}, int, error) {
 	pos := 1
 
-	count, delta := readLength(data[:pos])
+	count, delta := readLength(data[pos:])
 	pos += delta
 
 	var elems []interface{} = make([]interface{}, count)
 	for i := range elems {
-		elem, delta, err := DecodeOne(data[:pos])
+		elem, delta, err := DecodeOne(data[pos:])
 		if err != nil {
 			return nil, 0, err
 		}
@@ -85,7 +88,22 @@ func DecodeOne(data []byte) (interface{}, int, error) {
 	case '*':
 		return readArray(data)
 	}
-	return nil, 0, nil
+	return nil, 0, errors.New("Unknown RESP type")
+}
+
+func DecodeArrayString(data []byte) ([]string, error) {
+	value, err := Decode(data)
+	if err != nil {
+		return nil, err
+	}
+
+	ts := value.([]interface{})
+	tokens := make([]string, len(ts))
+	for i := range tokens {
+		tokens[i] = ts[i].(string)
+	}
+
+	return tokens, nil
 }
 
 func Decode(data []byte) (interface{}, error) {
@@ -95,4 +113,15 @@ func Decode(data []byte) (interface{}, error) {
 
 	value, _, err := DecodeOne(data)
 	return value, err
+}
+
+func Encode(value interface{}, isSimpleString bool) []byte {
+	switch v := value.(type) {
+	case string:
+		if isSimpleString {
+			return []byte(fmt.Sprintf("+%s\r\n", v))
+		}
+		return []byte(fmt.Sprintf("$%d\r\n%s\r\n", len(v), v))
+	}
+	return []byte{}
 }
