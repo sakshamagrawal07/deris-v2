@@ -17,5 +17,5 @@ func setupFlags() {
 func main() {
 	setupFlags()
 	log.Println("Deris server rolling...")
-	server.RunSyncTCPServer();
+	server.RunAsyncTCPServer();
 }
