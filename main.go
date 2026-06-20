@@ -17,5 +17,7 @@ func setupFlags() {
 func main() {
 	setupFlags()
 	log.Println("Deris server rolling...")
-	server.RunAsyncTCPServer();
+	if err := server.RunAsyncTCPServer(); err != nil {
+		log.Fatalf("server failed: %v", err)
+	}
 }
