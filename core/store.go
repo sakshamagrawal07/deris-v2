@@ -29,5 +29,20 @@ func Put(key string, value *RedisObj) {
 }
 
 func Get(key string) *RedisObj {
-	return store[key]
+	v := store[key]
+	if v != nil {
+		if v.ExpiresAt <= time.Now().UnixMilli() {
+			delete(store, key)
+			return nil
+		}
+	}
+	return v
+}
+
+func Del(key string) bool {
+	if _, ok := store[key]; ok {
+		delete(store, key)
+		return true
+	}
+	return false
 }

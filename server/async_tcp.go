@@ -4,10 +4,15 @@ import (
 	"log"
 	"net"
 	"syscall"
+	"time"
 
 	"github.com/sakshamsharma/deris-v2/config"
 	"github.com/sakshamsharma/deris-v2/core"
 )
+
+var con_clients int = 0
+var cronFrequency time.Duration = 1 * time.Second
+var lastCronExecution time.Time = time.Now()
 
 func RunAsyncTCPServer() error {
 	log.Println("Starting an asynchronous TCP server on", config.Host, config.Port)
@@ -56,6 +61,11 @@ func RunAsyncTCPServer() error {
 	}
 
 	for {
+		if time.Now().After(lastCronExecution.Add(cronFrequency)) {
+			core.DeleteExpiredKeys()
+			lastCronExecution = time.Now()
+		}
+
 		nevents, err := syscall.EpollWait(epollFD, events[:], -1)
 		if err != nil {
 			continue
