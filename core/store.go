@@ -1,6 +1,10 @@
 package core
 
-import "time"
+import (
+	"time"
+
+	"github.com/sakshamsharma/deris-v2/config"
+)
 
 var store map[string]*RedisObj
 
@@ -25,6 +29,9 @@ func NewRedisObj(value interface{}, durationMs int64) *RedisObj {
 }
 
 func Put(key string, value *RedisObj) {
+	if len(store) >= config.KeysLimit {
+		evict()
+	}
 	store[key] = value
 }
 

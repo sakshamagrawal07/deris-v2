@@ -1,6 +1,8 @@
 package config
 
-var Host string
-var Port int
+var Host string = "0.0.0.0"
+var Port int = 7379
+var KeysLimit int = 5
 
 const MaxClients int = 20000
+
