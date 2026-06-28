@@ -33,20 +33,21 @@ func evalPING(args []string) []byte {
 
 func evalSET(args []string) []byte {
 	if len(args) <= 1 {
-		return Encode(errors.New("(error) ERR wrong number of arguments for 'set' command"), false)
+		return Encode(errors.New("ERR wrong number of arguments for 'set' command"), false)
 	}
 
 	var key, value string
 	var exDurationMs int64 = -1
 
 	key, value = args[0], args[1]
+	oType, oEnc := deduceTypeEncoding(value)
 
 	for i := 2; i < len(args); i++ {
 		switch args[i] {
 		case "EX", "ex":
 			i++
 			if i >= len(args) {
-				return Encode(errors.New("(error) ERR syntax error"), false)
+				return Encode(errors.New("ERR syntax error"), false)
 			}
 			exDurationSec, err := strconv.ParseInt(args[i], 10, 64)
 			if err != nil {
@@ -54,11 +55,11 @@ func evalSET(args []string) []byte {
 			}
 			exDurationMs = exDurationSec * 1000
 		default:
-			return Encode(errors.New("(error) ERR syntax error"), false)
+			return Encode(errors.New("ERR syntax error"), false)
 		}
 	}
 
-	Put(key, NewRedisObj(value, exDurationMs))
+	Put(key, NewRedisObj(value, exDurationMs, oType, oEnc))
 	return RESP_OK
 }
 
@@ -141,6 +142,35 @@ func evalEXPIRE(args []string) []byte {
 	return RESP_ONE
 }
 
+func evalBGREWRITEAOF(args []string) []byte {
+	DumpAllAOF()
+	return RESP_OK
+}
+
+func evalINCR(args []string) []byte {
+	if len(args) != 1 {
+		return Encode(errors.New("ERR wrong number of arguments for 'incr' command"), false)
+	}
+
+	var key string = args[0]
+
+	obj := Get(key)
+	if obj == nil {
+		obj = NewRedisObj("0", -1, OBJ_TYPE_STRING, OBJ_ENCODING_INT)
+		Put(key, obj)
+	}
+
+	if err := assertEncoding(obj.TypeEncoding, OBJ_ENCODING_INT); err != nil {
+		return Encode(err, false)
+	}
+
+	i, _ := strconv.ParseInt(obj.Value.(string), 10, 64)
+	i++
+	obj.Value = strconv.FormatInt(i, 10)
+
+	return Encode(i, false)
+}
+
 func EvalAndRespond(cmds RedisCmds, c io.ReadWriter) {
 	var response []byte
 	buf := bytes.NewBuffer(response)
@@ -159,6 +189,10 @@ func EvalAndRespond(cmds RedisCmds, c io.ReadWriter) {
 			buf.Write(evalDEL(cmd.Args))
 		case "EXPIRE":
 			buf.Write(evalEXPIRE(cmd.Args))
+		case "BGREWRITEAOF":
+			buf.Write(evalBGREWRITEAOF(cmd.Args))
+		case "INCR":
+			buf.Write(evalINCR(cmd.Args))
 		default:
 			buf.Write(evalPING(cmd.Args))
 		}

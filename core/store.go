@@ -8,21 +8,17 @@ import (
 
 var store map[string]*RedisObj
 
-type RedisObj struct {
-	Value     interface{}
-	ExpiresAt int64
-}
-
 func init() {
 	store = make(map[string]*RedisObj)
 }
 
-func NewRedisObj(value interface{}, durationMs int64) *RedisObj {
+func NewRedisObj(value interface{}, durationMs int64, oType uint8, oEnc uint8) *RedisObj {
 	var expiresAt int64 = -1
 	if durationMs > 0 {
 		expiresAt = time.Now().UnixMilli() + durationMs
 	}
 	return &RedisObj{
+		TypeEncoding: oType | oEnc,
 		Value:     value,
 		ExpiresAt: expiresAt,
 	}

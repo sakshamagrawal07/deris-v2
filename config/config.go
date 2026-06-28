@@ -6,3 +6,4 @@ var KeysLimit int = 5
 
 const MaxClients int = 20000
 
+var AOFFile string = "./deris.aof"
