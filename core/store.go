@@ -7,27 +7,34 @@ import (
 )
 
 var store map[string]*RedisObj
+var expires map[*RedisObj]uint64
 
 func init() {
 	store = make(map[string]*RedisObj)
+	expires = make(map[*RedisObj]uint64)
 }
 
-func NewRedisObj(value interface{}, durationMs int64, oType uint8, oEnc uint8) *RedisObj {
-	var expiresAt int64 = -1
-	if durationMs > 0 {
-		expiresAt = time.Now().UnixMilli() + durationMs
-	}
-	return &RedisObj{
+func setExpiry(obj *RedisObj, expDurationMs int64) {
+	expires[obj] = uint64(time.Now().UnixMilli()) + uint64(expDurationMs)
+}
+
+func NewRedisObj(value interface{}, expDurationMs int64, oType uint8, oEnc uint8) *RedisObj {
+	obj := &RedisObj{
+		Value: value,
 		TypeEncoding: oType | oEnc,
-		Value:     value,
-		ExpiresAt: expiresAt,
+		LastAccessedAt: getCurrentClock(),
 	}
+	if expDurationMs > 0 {
+		setExpiry(obj, expDurationMs)
+	}
+	return obj
 }
 
 func Put(key string, value *RedisObj) {
 	if len(store) >= config.KeysLimit {
 		evict()
 	}
+	value.LastAccessedAt = getCurrentClock()
 	store[key] = value
 	if KeyspaceStat[0] == nil {
 		KeyspaceStat[0] = make(map[string]int)
@@ -38,17 +45,19 @@ func Put(key string, value *RedisObj) {
 func Get(key string) *RedisObj {
 	v := store[key]
 	if v != nil {
-		if v.ExpiresAt <= time.Now().UnixMilli() {
+		if hasExpired(v) {
 			Del(key)
 			return nil
 		}
 	}
+	v.LastAccessedAt = getCurrentClock()
 	return v
 }
 
 func Del(key string) bool {
-	if _, ok := store[key]; ok {
+	if obj, ok := store[key]; ok {
 		delete(store, key)
+		delete(expires, obj)
 		KeyspaceStat[0]["keys"]--
 		return true
 	}

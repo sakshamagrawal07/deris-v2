@@ -77,7 +77,7 @@ func evalGET(args []string) []byte {
 		return RESP_NIL
 	}
 
-	if obj.ExpiresAt != -1 && obj.ExpiresAt < time.Now().UnixMilli() {
+	if hasExpired(obj) {
 		return RESP_NIL
 	}
 
@@ -97,15 +97,16 @@ func evalTTL(args []string) []byte {
 		return RESP_MINUS_TWO
 	}
 
-	if obj.ExpiresAt == -1 {
+	exp, isExpirySet := getExpiry(obj)
+	if !isExpirySet {
 		return RESP_MINUS_ONE
 	}
 
-	durationMs := obj.ExpiresAt - time.Now().UnixMilli()
-
-	if durationMs < 0 {
+	if uint64(time.Now().UnixMilli()) > exp {
 		return RESP_MINUS_TWO
 	}
+
+	durationMs := exp - uint64(time.Now().UnixMilli())
 
 	return Encode(int64(durationMs/1000), false)
 }
@@ -139,7 +140,8 @@ func evalEXPIRE(args []string) []byte {
 		return RESP_ZERO
 	}
 
-	obj.ExpiresAt = time.Now().UnixMilli() + exDurationSec*1000
+	setExpiry(obj, exDurationSec * 1000)
+	
 	return RESP_ONE
 }
 
@@ -179,6 +181,15 @@ func evalINFO(args []string) []byte {
 	for i := range KeyspaceStat {
 		buf.WriteString(fmt.Sprintf("db%d:keys=%d,expires=0,avg_ttl=0\r\n", i, KeyspaceStat[i]["keys"]))
 	}
+	return Encode(buf.String(), false)
+}
+
+func evalCLIENT(args []string) []byte {
+	return RESP_OK
+}
+
+func evalLATENCY(args []string) []byte {
+	return Encode([]string{}, false)
 }
 
 func EvalAndRespond(cmds RedisCmds, c io.ReadWriter) {
@@ -205,6 +216,10 @@ func EvalAndRespond(cmds RedisCmds, c io.ReadWriter) {
 			buf.Write(evalINCR(cmd.Args))
 		case "INFO":
 			buf.Write(evalINFO(cmd.Args))
+		case "CLIENT":
+			buf.Write(evalCLIENT(cmd.Args))
+		case "LATENCY":
+			buf.Write(evalLATENCY(cmd.Args))
 		default:
 			buf.Write(evalPING(cmd.Args))
 		}

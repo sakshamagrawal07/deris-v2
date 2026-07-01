@@ -3,7 +3,7 @@ package core
 type RedisObj struct {
 	TypeEncoding uint8
 	Value        interface{}
-	ExpiresAt    int64
+	LastAccessedAt    uint32
 }
 
 var OBJ_TYPE_STRING uint8 = 0 << 4
